@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Bhutan</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Bhutan</span>
+        <input id="search-bar" type="text" placeholder="Search for a District..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Districts and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a District to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const districtsData = [
+            { name: "Bumthang", capital: "Jakar", coordinates: [27.5528, 90.7333] },
+            { name: "Chhukha", capital: "Phuentsholing", coordinates: [26.8722, 89.3872] },
+            { name: "Dagana", capital: "Dagapela", coordinates: [27.1322, 89.7714] },
+            { name: "Gasa", capital: "Gasa", coordinates: [27.6353, 89.6847] },
+            { name: "Haa", capital: "Haa", coordinates: [27.3919, 89.4047] },
+            { name: "Lhuntse", capital: "Lhuntse", coordinates: [27.8192, 91.0563] },
+            { name: "Mongar", capital: "Mongar", coordinates: [27.3175, 91.2375] },
+            { name: "Paro", capital: "Paro", coordinates: [27.4414, 89.4231] },
+            { name: "Pema Gatshel", capital: "Pemagatshel", coordinates: [26.9997, 91.3767] },
+            { name: "Punakha", capital: "Punakha", coordinates: [27.5928, 89.7758] },
+            { name: "Samdrup Jongkhar", capital: "Samdrup Jongkhar", coordinates: [26.8461, 91.5586] },
+            { name: "Samtse", capital: "Samtse", coordinates: [26.9628, 89.0628] },
+            { name: "Sarpang", capital: "Sarpang", coordinates: [26.6817, 90.2131] },
+            { name: "Thimphu", capital: "Thimphu", coordinates: [27.4728, 89.6397] },
+            { name: "Trashigang", capital: "Trashigang", coordinates: [27.3372, 91.5814] },
+            { name: "Trashiyangtse", capital: "Trashiyangtse", coordinates: [27.7706, 91.4425] },
+            { name: "Wangdue Phodrang", capital: "Wangdue Phodrang", coordinates: [27.4314, 89.6428] },
+            { name: "Zhemgang", capital: "Zhemgang", coordinates: [27.2892, 90.7239] }
+        ];
+        let originalDistrictList = [...districtsData];
+        const map = L.map('map').setView([27.5528, 90.7333], 7); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateDistrictList(districts) {
+            regionList.innerHTML = '';
+            districts.forEach(district => {
+                const li = document.createElement('li');
+                li.textContent = `${district.name} - Capital: ${district.capital}`;
+                li.addEventListener('click', () => handleDistrictClick(district));
+                regionList.appendChild(li);
+            });
+        }
+        populateDistrictList(districtsData);
+        function handleDistrictClick(district) {
+            document.getElementById('region-name').textContent = `District: ${district.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${district.capital}`;
+            const lat = district.coordinates[0];
+            const lon = district.coordinates[1];
+            map.setView([lat, lon], 10); 
+            L.marker([lat, lon]).addTo(map).bindPopup(`${district.name} - ${district.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block';
+            speakText(`${district.name} - Capital: ${district.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a District to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([27.5528, 90.7333], 7); 
+            populateDistrictList(originalDistrictList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredDistricts = [];
+            regionList.innerHTML = ''; 
+            districtsData.forEach(district => {
+                if (district.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${district.name} - Capital: ${district.capital}`;
+                    li.addEventListener('click', () => handleDistrictClick(district));
+                    regionList.appendChild(li);
+                    filteredDistricts.push(district);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Canada</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Canada</span>
+        <input id="search-bar" type="text" placeholder="Search for a Province/Territory..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Provinces and Territories</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Province/Territory to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const provincesData = [
+            { name: "Alberta", capital: "Edmonton", coordinates: [53.5461, -113.4938] },
+            { name: "British Columbia", capital: "Victoria", coordinates: [48.4284, -123.3656] },
+            { name: "Manitoba", capital: "Winnipeg", coordinates: [49.8951, -97.1384] },
+            { name: "New Brunswick", capital: "Fredericton", coordinates: [45.9636, -66.6431] },
+            { name: "Newfoundland and Labrador", capital: "St. John's", coordinates: [47.5615, -52.7126] },
+            { name: "Nova Scotia", capital: "Halifax", coordinates: [44.6488, -63.5752] },
+            { name: "Ontario", capital: "Toronto", coordinates: [43.65107, -79.347015] },
+            { name: "Prince Edward Island", capital: "Charlottetown", coordinates: [46.2382, -63.1311] },
+            { name: "Quebec", capital: "Quebec City", coordinates: [46.8139, -71.2082] },
+            { name: "Saskatchewan", capital: "Regina", coordinates: [50.4454, -104.6189] },
+            { name: "Northwest Territories", capital: "Yellowknife", coordinates: [62.4540, -114.3718] },
+            { name: "Nunavut", capital: "Iqaluit", coordinates: [63.7467, -68.5167] },
+            { name: "Yukon", capital: "Whitehorse", coordinates: [60.7212, -135.0568] }
+        ];
+        let originalRegionList = [...provincesData];
+        const map = L.map('map').setView([56.1304, -106.3468], 4); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(provinces) {
+            regionList.innerHTML = '';
+            provinces.forEach(province => {
+                const li = document.createElement('li');
+                li.textContent = `${province.name} - Capital: ${province.capital}`;
+                li.addEventListener('click', () => handleRegionClick(province));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(provincesData);
+        function handleRegionClick(province) {
+            document.getElementById('region-name').textContent = `Province/Territory: ${province.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${province.capital}`;
+            const lat = province.coordinates[0];
+            const lon = province.coordinates[1];
+            map.setView([lat, lon], 10); 
+            L.marker([lat, lon]).addTo(map).bindPopup(`${province.name} - ${province.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; 
+
+            speakText(`${province.name} - Capital: ${province.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a Province/Territory to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([56.1304, -106.3468], 4); 
+            populateRegionList(originalRegionList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredProvinces = [];
+            regionList.innerHTML = ''; 
+            provincesData.forEach(province => {
+                if (province.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${province.name} - Capital: ${province.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(province));
+                    regionList.appendChild(li);
+                    filteredProvinces.push(province);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+</body>
+</html>

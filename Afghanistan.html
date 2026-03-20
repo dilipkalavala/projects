@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Province and Capital</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #state-list .highlighted {
+            background-color: #ddd;
+        }
+        #state-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <input id="search-bar" type="text" placeholder="Search for a province..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Provinces and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a province to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of all Afghan provinces with their capitals and coordinates
+        const statesData = [
+            { name: "Badakhshan", capital: "Fayzabad", coordinates: [37.1296, 70.5797] },
+            { name: "Badghis", capital: "Qala-e-Naw", coordinates: [35.0176, 63.7496] },
+            { name: "Baghlan", capital: "Pul-e-Khumri", coordinates: [35.9446, 68.7151] },
+            { name: "Balkh", capital: "Mazar-i-Sharif", coordinates: [36.7090, 67.1109] },
+            { name: "Bamyan", capital: "Bamyan", coordinates: [34.8122, 67.8213] },
+            { name: "Daykundi", capital: "Nili", coordinates: [33.7411, 66.1400] },
+            { name: "Farah", capital: "Farah", coordinates: [32.3763, 62.1164] },
+            { name: "Faryab", capital: "Maymana", coordinates: [35.9300, 64.7715] },
+            { name: "Ghazni", capital: "Ghazni", coordinates: [33.5451, 68.4174] },
+            { name: "Helmand", capital: "Lashkar Gah", coordinates: [31.5938, 64.3572] },
+            { name: "Herat", capital: "Herat", coordinates: [34.3482, 62.1997] },
+            { name: "Kabul", capital: "Kabul", coordinates: [34.5553, 69.2075] },
+            { name: "Kandahar", capital: "Kandahar", coordinates: [31.6289, 65.7372] },
+            { name: "Khost", capital: "Khost", coordinates: [33.3393, 69.9204] },
+            { name: "Kunar", capital: "Asadabad", coordinates: [35.3526, 71.4455] },
+            { name: "Nangarhar", capital: "Jalalabad", coordinates: [34.4343, 70.4478] },
+            { name: "Paktia", capital: "Gardez", coordinates: [33.5974, 69.2252] },
+            { name: "Paktika", capital: "Sharana", coordinates: [32.3333, 68.8689] },
+            { name: "Takhar", capital: "Taloqan", coordinates: [36.7361, 69.5409] },
+            { name: "Zabul", capital: "Qalat", coordinates: [32.1055, 66.9096] }
+        ];
+        let originalStateList = [...statesData];
+
+        // Initialize the map
+        const map = L.map('map').setView([33.9391, 67.7100], 6);
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        const stateList = document.getElementById('state-list');
+        function populateStateList(states) {
+            stateList.innerHTML = '';
+            states.forEach(state => {
+                const li = document.createElement('li');
+                li.textContent = `${state.name} - Capital: ${state.capital}`;
+                li.addEventListener('click', () => handleStateClick(state));
+                stateList.appendChild(li);
+            });
+        }
+        populateStateList(statesData);
+
+        // Handle state click
+        function handleStateClick(state) {
+            document.getElementById('state-name').textContent = `State: ${state.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+            const lat = state.coordinates[0];
+            const lon = state.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into state location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the state and capital
+            speakText(`${state.name} - Capital: ${state.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('state-name').textContent = 'Select a State to view details'; // Reset the state details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([33.9391, 67.7100], 6); // Reset map view
+            populateStateList(originalStateList); // Restore original state list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredStates = [];
+            stateList.innerHTML = ''; // Clear the existing list
+            statesData.forEach(state => {
+                if (state.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${state.name} - Capital: ${state.capital}`;
+                    li.addEventListener('click', () => handleStateClick(state));
+                    stateList.appendChild(li);
+                    filteredStates.push(state);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

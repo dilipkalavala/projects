@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Province and Capital</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #state-list .highlighted {
+            background-color: #ddd;
+        }
+        #state-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Australia</span>
+        <input id="search-bar" type="text" placeholder="Search for a state..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>States and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a state to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of Australia's states with their capitals and coordinates
+        const statesData = [
+            { name: "New South Wales", capital: "Sydney", coordinates: [-33.8688, 151.2093] },
+            { name: "Queensland", capital: "Brisbane", coordinates: [-27.4698, 153.0251] },
+            { name: "South Australia", capital: "Adelaide", coordinates: [-34.9285, 138.6007] },
+            { name: "Tasmania", capital: "Hobart", coordinates: [-42.8794, 147.3272] },
+            { name: "Victoria", capital: "Melbourne", coordinates: [-37.8136, 144.9631] },
+            { name: "Western Australia", capital: "Perth", coordinates: [-31.9505, 115.8605] },
+            { name: "Australian Capital Territory", capital: "Canberra", coordinates: [-35.2809, 149.1300] },
+            { name: "Northern Territory", capital: "Darwin", coordinates: [-12.4634, 130.8456] }
+        ];
+        let originalStateList = [...statesData];
+
+        // Initialize the map
+        const map = L.map('map').setView([-25.2744, 133.7751], 5);
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Populate the state list
+        const stateList = document.getElementById('state-list');
+        function populateStateList(states) {
+            stateList.innerHTML = '';
+            states.forEach(state => {
+                const li = document.createElement('li');
+                li.textContent = `${state.name} - Capital: ${state.capital}`;
+                li.addEventListener('click', () => handleStateClick(state));
+                stateList.appendChild(li);
+            });
+        }
+        populateStateList(statesData);
+
+        // Handle state click
+        function handleStateClick(state) {
+            document.getElementById('state-name').textContent = `State: ${state.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+            const lat = state.coordinates[0];
+            const lon = state.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into state location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the state and capital
+            speakText(`${state.name} - Capital: ${state.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('state-name').textContent = 'Select a State to view details'; // Reset the state details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([-25.2744, 133.7751], 5); // Reset map view
+            populateStateList(originalStateList); // Restore original state list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredStates = [];
+            stateList.innerHTML = ''; // Clear the existing list
+            statesData.forEach(state => {
+                if (state.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${state.name} - Capital: ${state.capital}`;
+                    li.addEventListener('click', () => handleStateClick(state));
+                    stateList.appendChild(li);
+                    filteredStates.push(state);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

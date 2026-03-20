@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Regions and Capitals</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #region-list .highlighted {
+            background-color: #ddd;
+        }
+        #region-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Dominican Republic</span>
+        <input id="search-bar" type="text" placeholder="Search for a Region..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Regions and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Region to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of Dominican Republic's regions with their capitals and coordinates
+        const regionsData = [
+            { name: "Azua", capital: "Azua", coordinates: [18.4394, -70.7387] },
+            { name: "Baoruco", capital: "Neiba", coordinates: [18.4860, -71.2226] },
+            { name: "Barahona", capital: "Santa Cruz de Barahona", coordinates: [18.2214, -71.1021] },
+            { name: "Dajabón", capital: "Dajabón", coordinates: [19.5690, -71.6953] },
+            { name: "Distrito Nacional", capital: "Santo Domingo", coordinates: [18.4861, -69.9312] },
+            { name: "Duarte", capital: "San Francisco de Macorís", coordinates: [19.3016, -69.3775] },
+            { name: "Elías Piña", capital: "Comendador", coordinates: [18.5185, -71.7711] },
+            { name: "El Seibo", capital: "Santa Cruz del Seibo", coordinates: [18.7575, -69.2114] },
+            { name: "Espaillat", capital: "Moca", coordinates: [19.2925, -70.5574] },
+            { name: "Independencia", capital: "Jimaní", coordinates: [18.5070, -71.4921] },
+            { name: "La Altagracia", capital: "Higuey", coordinates: [18.6164, -68.5577] },
+            { name: "La Romana", capital: "La Romana", coordinates: [18.4217, -68.9825] },
+            { name: "La Vega", capital: "Concepción de La Vega", coordinates: [19.2333, -70.5322] },
+            { name: "Monte Cristi", capital: "San Fernando de Monte Cristi", coordinates: [19.8551, -71.6581] },
+            { name: "Monte Plata", capital: "Monte Plata", coordinates: [19.2580, -69.7979] }
+        ];
+        let originalRegionList = [...regionsData];
+
+        // Initialize the map
+        const map = L.map('map').setView([18.4861, -69.9312], 7); // Centering Dominican Republic
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Populate the region list
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(regions) {
+            regionList.innerHTML = '';
+            regions.forEach(region => {
+                const li = document.createElement('li');
+                li.textContent = `${region.name} - Capital: ${region.capital}`;
+                li.addEventListener('click', () => handleRegionClick(region));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(regionsData);
+
+        // Handle region click
+        function handleRegionClick(region) {
+            document.getElementById('region-name').textContent = `Region: ${region.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${region.capital}`;
+            const lat = region.coordinates[0];
+            const lon = region.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into region location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${region.name} - ${region.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the region and capital
+            speakText(`${region.name} - Capital: ${region.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('region-name').textContent = 'Select a Region to view details'; // Reset the region details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([18.4861, -69.9312], 7); // Reset map view
+            populateRegionList(originalRegionList); // Restore original region list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredRegions = [];
+            regionList.innerHTML = ''; // Clear the existing list
+            regionsData.forEach(region => {
+                if (region.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${region.name} - Capital: ${region.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(region));
+                    regionList.appendChild(li);
+                    filteredRegions.push(region);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

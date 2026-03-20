@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with State and Capital</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #state-list .highlighted {
+            background-color: #ddd;
+        }
+        #state-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">India map</span>
+        <input id="search-bar" type="text" placeholder="Search for a state..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>States and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a state to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of all Indian states with their capitals and coordinates
+        const statesData = [
+        { name: "Andhra Pradesh", capital: "Amaravati", coordinates: [16.5061, 80.6480] },
+    { name: "Arunachal Pradesh", capital: "Itanagar", coordinates: [27.0193, 93.6207] },
+    { name: "Assam", capital: "Dispur", coordinates: [26.1600, 91.7700] },
+    { name: "Bihar", capital: "Patna", coordinates: [25.5941, 85.1376] },
+    { name: "Chhattisgarh", capital: "Raipur", coordinates: [21.2514, 81.6296] },
+    { name: "Goa", capital: "Panaji", coordinates: [15.4909, 73.8278] },
+    { name: "Gujarat", capital: "Gandhinagar", coordinates: [23.2156, 72.6369] },
+    { name: "Haryana", capital: "Chandigarh", coordinates: [30.7333, 76.7794] },
+    { name: "Himachal Pradesh", capital: "Shimla", coordinates: [31.1048, 77.1734] },
+    { name: "Jharkhand", capital: "Ranchi", coordinates: [23.3441, 85.3096] },
+    { name: "Karnataka", capital: "Bengaluru", coordinates: [12.9716, 77.5946] },
+    { name: "Kerala", capital: "Thiruvananthapuram", coordinates: [8.5241, 76.9366] },
+    { name: "Madhya Pradesh", capital: "Bhopal", coordinates: [23.2599, 77.4126] },
+    { name: "Maharashtra", capital: "Mumbai", coordinates: [19.0760, 72.8777] },
+    { name: "Manipur", capital: "Imphal", coordinates: [24.8176, 93.9368] },
+    { name: "Meghalaya", capital: "Shillong", coordinates: [25.5788, 91.8933] },
+    { name: "Mizoram", capital: "Aizawl", coordinates: [23.1645, 92.9376] },
+    { name: "Nagaland", capital: "Kohima", coordinates: [25.6667, 94.1133] },
+    { name: "Odisha", capital: "Bhubaneswar", coordinates: [20.2961, 85.8189] },
+    { name: "Punjab", capital: "Chandigarh", coordinates: [30.7333, 76.7794] },
+    { name: "Rajasthan", capital: "Jaipur", coordinates: [26.9124, 75.7873] },
+    { name: "Sikkim", capital: "Gangtok", coordinates: [27.0330, 88.6139] },
+    { name: "Tamil Nadu", capital: "Chennai", coordinates: [13.0827, 80.2707] },
+    { name: "Telangana", capital: "Hyderabad", coordinates: [17.3850, 78.4867] },
+    { name: "Tripura", capital: "Agartala", coordinates: [23.8315, 91.2868] },
+    { name: "Uttar Pradesh", capital: "Lucknow", coordinates: [26.8467, 80.9462] },
+    { name: "Uttarakhand", capital: "Dehradun", coordinates: [30.3165, 78.0322] },
+    { name: "West Bengal", capital: "Kolkata", coordinates: [22.5726, 88.3639] }
+];
+
+ // Initialize the map centered on India (New Delhi)
+ const map = L.map('map').setView([28.6139, 77.2090], 5); // Centering India (New Delhi)
+
+// Add a tile layer for the map background
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 18
+}).addTo(map);
+
+// Variables to track the previous map view
+let previousView = { center: [28.6139, 77.2090], zoom: 5 };
+
+// Populate the state list
+const stateList = document.getElementById('state-list');
+function populateStateList(states) {
+    stateList.innerHTML = '';
+    states.forEach(state => {
+        const li = document.createElement('li');
+        li.textContent = `${state.name} - Capital: ${state.capital}`;
+        li.addEventListener('click', () => handleStateClick(state));
+        stateList.appendChild(li);
+    });
+}
+populateStateList(statesData);
+
+// Handle state click
+function handleStateClick(state) {
+    // Save the current view before zooming into the state
+    previousView = {
+        center: map.getCenter(),
+        zoom: map.getZoom()
+    };
+
+    document.getElementById('state-name').textContent = `State: ${state.name}`;
+    document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+    const lat = state.coordinates[0];
+    const lon = state.coordinates[1];
+    map.setView([lat, lon], 10); // Zoom into state location
+    L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+    document.getElementById('back-button').style.display = 'block'; // Show back button
+
+    // Play the name of the state and capital
+    speakText(`${state.name} - Capital: ${state.capital}`);
+}
+
+// Function to use the Web Speech API to speak the text
+function speakText(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    speechSynthesis.speak(utterance);
+}
+
+// Back button functionality
+document.getElementById('back-button').addEventListener('click', function () {
+    this.style.display = 'none'; // Hide the back button
+    document.getElementById('state-name').textContent = 'Select a State to view details'; // Reset the state details
+    document.getElementById('capital-name').textContent = ''; // Reset the capital details
+
+    // Restore the previous map view
+    map.setView(previousView.center, previousView.zoom);
+});
+
+// Search functionality
+document.getElementById('search-bar').addEventListener('input', function () {
+    const searchTerm = this.value.toLowerCase();
+    const filteredStates = [];
+    stateList.innerHTML = ''; // Clear the existing list
+    statesData.forEach(state => {
+        if (state.name.toLowerCase().includes(searchTerm)) {
+            const li = document.createElement('li');
+            li.textContent = `${state.name} - Capital: ${state.capital}`;
+            li.addEventListener('click', () => handleStateClick(state));
+            stateList.appendChild(li);
+            filteredStates.push(state);
+        }
+    });
+});
+
+// Home button functionality to navigate back to Home.html
+document.getElementById('home-button').addEventListener('click', function () {
+    window.location.href = 'Home.html';
+});
+
+// World map button functionality
+document.getElementById('world-map-button').addEventListener('click', function () {
+    window.location.href = 'World.html';
+});
+</script>

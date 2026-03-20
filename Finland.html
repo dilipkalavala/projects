@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Regions and Capitals</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #region-list .highlighted {
+            background-color: #ddd;
+        }
+        #region-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Finland</span>
+        <input id="search-bar" type="text" placeholder="Search for a Region..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Regions and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Region to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of Finland's regions with their capitals and coordinates
+        const regionsData = [
+            { name: "Åland Islands", capital: "Mariehamn", coordinates: [60.0986, 19.9347] },
+            { name: "Central Finland", capital: "Jyväskylä", coordinates: [62.2406, 25.7473] },
+            { name: "Central Ostrobothnia", capital: "Kokkola", coordinates: [63.8667, 23.1314] },
+            { name: "Eastern Finland", capital: "Kuopio", coordinates: [62.8924, 27.6829] },
+            { name: "Eastern Uusimaa", capital: "Porvoo", coordinates: [60.3954, 25.6628] },
+            { name: "Kainuu", capital: "Kajaani", coordinates: [64.2210, 27.7319] },
+            { name: "Kymenlaakso", capital: "Kouvola", coordinates: [60.9640, 26.7030] },
+            { name: "Lapland", capital: "Rovaniemi", coordinates: [66.5039, 25.7320] },
+            { name: "Northern Ostrobothnia", capital: "Oulu", coordinates: [64.0027, 25.4653] },
+            { name: "Northern Savo", capital: "Iisalmi", coordinates: [62.6542, 27.4354] },
+            { name: "Ostrobothnia", capital: "Vaasa", coordinates: [63.0946, 21.6154] },
+            { name: "Pirkanmaa", capital: "Tampere", coordinates: [61.4978, 23.7610] },
+            { name: "Pohjois-Karjala", capital: "Joensuu", coordinates: [62.5961, 29.7634] },
+            { name: "South Karelia", capital: "Lappeenranta", coordinates: [61.0660, 28.1875] },
+            { name: "South Ostrobothnia", capital: "Seinäjoki", coordinates: [62.7892, 22.8395] },
+            { name: "Southern Finland", capital: "Helsinki", coordinates: [60.1699, 24.9384] },
+            { name: "Southern Savonia", capital: "Mikkeli", coordinates: [61.6875, 27.2735] },
+            { name: "Uusimaa", capital: "Helsinki", coordinates: [60.1699, 24.9384] },
+            { name: "Western Finland", capital: "Turku", coordinates: [60.4518, 22.2666] }
+        ];
+        let originalRegionList = [...regionsData];
+
+        // Initialize the map centered on Finland (Helsinki)
+        const map = L.map('map').setView([60.1699, 24.9384], 6); // Centering Finland (Helsinki)
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Populate the region list
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(regions) {
+            regionList.innerHTML = '';
+            regions.forEach(region => {
+                const li = document.createElement('li');
+                li.textContent = `${region.name} - Capital: ${region.capital}`;
+                li.addEventListener('click', () => handleRegionClick(region));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(regionsData);
+
+        // Handle region click
+        function handleRegionClick(region) {
+            document.getElementById('region-name').textContent = `Region: ${region.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${region.capital}`;
+            const lat = region.coordinates[0];
+            const lon = region.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into region location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${region.name} - ${region.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the region and capital
+            speakText(`${region.name} - Capital: ${region.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('region-name').textContent = 'Select a Region to view details'; // Reset the region details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([60.1699, 24.9384], 6); // Reset map view
+            populateRegionList(originalRegionList); // Restore original region list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredRegions = [];
+            regionList.innerHTML = ''; // Clear the existing list
+            regionsData.forEach(region => {
+                if (region.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${region.name} - Capital: ${region.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(region));
+                    regionList.appendChild(li);
+                    filteredRegions.push(region);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

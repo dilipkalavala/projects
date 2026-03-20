@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Regions and Capitals</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #region-list .highlighted {
+            background-color: #ddd;
+        }
+        #region-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Egypt</span>
+        <input id="search-bar" type="text" placeholder="Search for a Region..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Regions and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Region to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of Egypt's governorates with their capitals and coordinates
+        const regionsData = [
+            { name: "Alexandria", capital: "Alexandria", coordinates: [31.2156, 29.9553] },
+            { name: "Aswan", capital: "Aswan", coordinates: [24.0889, 32.8997] },
+            { name: "Asyut", capital: "Asyut", coordinates: [27.1799, 31.1851] },
+            { name: "Beheira", capital: "Damanhour", coordinates: [31.0342, 30.4613] },
+            { name: "Beni Suef", capital: "Beni Suef", coordinates: [29.0667, 31.0990] },
+            { name: "Cairo", capital: "Cairo", coordinates: [30.0330, 31.2336] },
+            { name: "Dakahlia", capital: "Mansoura", coordinates: [31.0430, 31.0000] },
+            { name: "Damietta", capital: "Damietta", coordinates: [31.1833, 31.4167] },
+            { name: "Faiyum", capital: "Faiyum", coordinates: [29.3100, 30.8433] },
+            { name: "Gharbia", capital: "Tanta", coordinates: [30.8012, 31.0202] },
+            { name: "Giza", capital: "Giza", coordinates: [30.0330, 31.2336] },
+            { name: "Ismailia", capital: "Ismailia", coordinates: [30.5892, 32.2663] },
+            { name: "Kafr El Sheikh", capital: "Kafr El Sheikh", coordinates: [31.1016, 30.8407] },
+            { name: "Luxor", capital: "Luxor", coordinates: [25.6872, 32.6396] },
+            { name: "Matruh", capital: "Marsa Matruh", coordinates: [31.3545, 27.2576] },
+            { name: "Minya", capital: "Minya", coordinates: [28.1000, 30.7517] },
+            { name: "Monufia", capital: "Shibin El Kom", coordinates: [30.5800, 31.0000] },
+            { name: "New Valley", capital: "Kharga", coordinates: [25.4400, 30.5600] },
+            { name: "North Sinai", capital: "El Arish", coordinates: [31.1281, 33.8000] },
+            { name: "Port Said", capital: "Port Said", coordinates: [31.2565, 32.2881] },
+            { name: "Qalyubia", capital: "Benha", coordinates: [30.4630, 31.1851] },
+            { name: "Qena", capital: "Qena", coordinates: [26.1583, 32.7153] },
+            { name: "Red Sea", capital: "Hurghada", coordinates: [27.2575, 33.8116] },
+            { name: "Sharqia", capital: "Zagazig", coordinates: [30.5892, 31.5000] },
+            { name: "Sohag", capital: "Sohag", coordinates: [26.5575, 31.7006] },
+            { name: "South Sinai", capital: "Sharm El Sheikh", coordinates: [27.9158, 34.3833] },
+            { name: "Suez", capital: "Suez", coordinates: [29.9737, 32.5497] }
+        ];
+        let originalRegionList = [...regionsData];
+
+        // Initialize the map centered on Egypt
+        const map = L.map('map').setView([26.8206, 30.8025], 6); // Centering Egypt
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Populate the region list
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(regions) {
+            regionList.innerHTML = '';
+            regions.forEach(region => {
+                const li = document.createElement('li');
+                li.textContent = `${region.name} - Capital: ${region.capital}`;
+                li.addEventListener('click', () => handleRegionClick(region));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(regionsData);
+
+        // Handle region click
+        function handleRegionClick(region) {
+            document.getElementById('region-name').textContent = `Region: ${region.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${region.capital}`;
+            const lat = region.coordinates[0];
+            const lon = region.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into region location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${region.name} - ${region.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the region and capital
+            speakText(`${region.name} - Capital: ${region.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('region-name').textContent = 'Select a Region to view details'; // Reset the region details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([26.8206, 30.8025], 6); // Reset map view
+            populateRegionList(originalRegionList); // Restore original region list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredRegions = [];
+            regionList.innerHTML = ''; // Clear the existing list
+            regionsData.forEach(region => {
+                if (region.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${region.name} - Capital: ${region.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(region));
+                    regionList.appendChild(li);
+                    filteredRegions.push(region);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

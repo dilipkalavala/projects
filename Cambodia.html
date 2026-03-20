@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Cambodia</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Cambodia</span>
+        <input id="search-bar" type="text" placeholder="Search for a Province..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Provinces and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Province to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const provincesData = [
+            { name: "Phnom Penh", capital: "Phnom Penh", coordinates: [11.5564, 104.9282] },
+            { name: "Battambang", capital: "Battambang", coordinates: [13.1022, 103.1981] },
+            { name: "Siem Reap", capital: "Siem Reap", coordinates: [13.3633, 103.8564] },
+            { name: "Kampong Cham", capital: "Kampong Cham", coordinates: [12.0006, 105.4643] },
+            { name: "Kampot", capital: "Kampot", coordinates: [10.6106, 104.1812] },
+            { name: "Kandal", capital: "Ta Khmau", coordinates: [11.4900, 104.8950] },
+            { name: "Koh Kong", capital: "Koh Kong", coordinates: [11.6087, 102.9836] },
+            { name: "Kratié", capital: "Kratié", coordinates: [12.4880, 106.0181] },
+            { name: "Mondulkiri", capital: "Senmonorom", coordinates: [12.4574, 107.1855] },
+            { name: "Oddar Meanchey", capital: "Samraong", coordinates: [14.1525, 103.5194] },
+            { name: "Pailin", capital: "Pailin", coordinates: [12.8483, 102.6093] },
+            { name: "Preah Sihanouk", capital: "Sihanoukville", coordinates: [10.6252, 103.5234] },
+            { name: "Preah Vihear", capital: "Preah Vihear", coordinates: [13.7891, 104.9764] },
+            { name: "Prey Veng", capital: "Prey Veng", coordinates: [11.4860, 105.3320] },
+            { name: "Pursat", capital: "Pursat", coordinates: [12.5386, 103.9203] },
+            { name: "Ratanakiri", capital: "Banlung", coordinates: [13.7398, 106.9876] },
+            { name: "Svay Rieng", capital: "Svay Rieng", coordinates: [11.0841, 105.8006] },
+            { name: "Stung Treng", capital: "Stung Treng", coordinates: [13.5250, 105.9687] },
+            { name: "Takeo", capital: "Doun Kaev", coordinates: [10.9901, 104.7898] },
+            { name: "Tboung Khmum", capital: "Suong", coordinates: [12.1286, 105.5680] }
+        ];
+        let originalRegionList = [...provincesData];
+        const map = L.map('map').setView([11.5564, 104.9282], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(provinces) {
+            regionList.innerHTML = '';
+            provinces.forEach(province => {
+                const li = document.createElement('li');
+                li.textContent = `${province.name} - Capital: ${province.capital}`;
+                li.addEventListener('click', () => handleRegionClick(province));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(provincesData);
+        function handleRegionClick(province) {
+            document.getElementById('region-name').textContent = `Province: ${province.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${province.capital}`;
+            const lat = province.coordinates[0];
+            const lon = province.coordinates[1];
+            map.setView([lat, lon], 10);
+            L.marker([lat, lon]).addTo(map).bindPopup(`${province.name} - ${province.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block';
+            speakText(`${province.name} - Capital: ${province.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a Province to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([11.5564, 104.9282], 7);
+            populateRegionList(originalRegionList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredProvinces = [];
+            regionList.innerHTML = ''; 
+            provincesData.forEach(province => {
+                if (province.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${province.name} - Capital: ${province.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(province));
+                    regionList.appendChild(li);
+                    filteredProvinces.push(province);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+</body>
+</html>

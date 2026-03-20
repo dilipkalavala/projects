@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Provinces and Capitals</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #state-list .highlighted {
+            background-color: #ddd;
+        }
+        #state-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Austria</span>
+        <input id="search-bar" type="text" placeholder="Search for a state..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>States and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a state to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of Austria's states with their capitals and coordinates
+        const statesData = [
+            { name: "Burgenland", capital: "Eisenstadt", coordinates: [47.8456, 16.5331] },
+            { name: "Carinthia", capital: "Klagenfurt", coordinates: [46.6225, 14.3075] },
+            { name: "Lower Austria", capital: "Sankt Pölten", coordinates: [48.2047, 15.6256] },
+            { name: "Upper Austria", capital: "Linz", coordinates: [48.3064, 14.2861] },
+            { name: "Salzburg", capital: "Salzburg", coordinates: [47.8095, 13.0550] },
+            { name: "Styria", capital: "Graz", coordinates: [47.0707, 15.4395] },
+            { name: "Tyrol", capital: "Innsbruck", coordinates: [47.2692, 11.4041] },
+            { name: "Vorarlberg", capital: "Bregenz", coordinates: [47.5031, 9.7471] },
+            { name: "Vienna", capital: "Vienna", coordinates: [48.2082, 16.3738] }
+        ];
+        let originalStateList = [...statesData];
+
+        // Initialize the map
+        const map = L.map('map').setView([47.5162, 14.5501], 7);
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Populate the state list
+        const stateList = document.getElementById('state-list');
+        function populateStateList(states) {
+            stateList.innerHTML = '';
+            states.forEach(state => {
+                const li = document.createElement('li');
+                li.textContent = `${state.name} - Capital: ${state.capital}`;
+                li.addEventListener('click', () => handleStateClick(state));
+                stateList.appendChild(li);
+            });
+        }
+        populateStateList(statesData);
+
+        // Handle state click
+        function handleStateClick(state) {
+            document.getElementById('state-name').textContent = `State: ${state.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+            const lat = state.coordinates[0];
+            const lon = state.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into state location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the state and capital
+            speakText(`${state.name} - Capital: ${state.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('state-name').textContent = 'Select a State to view details'; // Reset the state details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([47.5162, 14.5501], 7); // Reset map view
+            populateStateList(originalStateList); // Restore original state list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredStates = [];
+            stateList.innerHTML = ''; // Clear the existing list
+            statesData.forEach(state => {
+                if (state.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${state.name} - Capital: ${state.capital}`;
+                    li.addEventListener('click', () => handleStateClick(state));
+                    stateList.appendChild(li);
+                    filteredStates.push(state);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

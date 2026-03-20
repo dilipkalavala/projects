@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Bulgaria</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Bulgaria</span>
+        <input id="search-bar" type="text" placeholder="Search for a Province..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Provinces and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Province to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const provincesData = [
+            { name: "Blagoevgrad", capital: "Blagoevgrad", coordinates: [42.0146, 23.1029] },
+            { name: "Burgas", capital: "Burgas", coordinates: [42.5048, 27.4626] },
+            { name: "Dobrich", capital: "Dobrich", coordinates: [43.5705, 27.8273] },
+            { name: "Gabrovo", capital: "Gabrovo", coordinates: [42.8747, 25.3175] },
+            { name: "Haskovo", capital: "Haskovo", coordinates: [41.9347, 25.5560] },
+            { name: "Kardzhali", capital: "Kardzhali", coordinates: [41.6500, 25.3667] },
+            { name: "Kyustendil", capital: "Kyustendil", coordinates: [42.2837, 22.6880] },
+            { name: "Lovech", capital: "Lovech", coordinates: [43.1333, 24.7167] },
+            { name: "Montana", capital: "Montana", coordinates: [43.4106, 23.2251] },
+            { name: "Pazardzhik", capital: "Pazardzhik", coordinates: [42.1928, 24.3339] },
+            { name: "Pernik", capital: "Pernik", coordinates: [42.6074, 23.0345] },
+            { name: "Pleven", capital: "Pleven", coordinates: [43.4167, 24.6167] },
+            { name: "Plovdiv", capital: "Plovdiv", coordinates: [42.1500, 24.7500] },
+            { name: "Razgrad", capital: "Razgrad", coordinates: [43.5333, 26.5167] },
+            { name: "Ruse", capital: "Ruse", coordinates: [43.8378, 25.9667] },
+            { name: "Shumen", capital: "Shumen", coordinates: [43.2713, 26.9361] },
+            { name: "Silistra", capital: "Silistra", coordinates: [44.1167, 27.2667] },
+            { name: "Sliven", capital: "Sliven", coordinates: [42.6783, 26.3229] },
+            { name: "Smolyan", capital: "Smolyan", coordinates: [41.5774, 24.7012] },
+            { name: "Sofia", capital: "Sofia", coordinates: [42.6977, 23.3219] },
+            { name: "Sofia Province", capital: "Sofia", coordinates: [42.6500, 23.1500] },
+            { name: "Stara Zagora", capital: "Stara Zagora", coordinates: [42.4328, 25.6413] },
+            { name: "Targovishte", capital: "Targovishte", coordinates: [43.2500, 26.5833] },
+            { name: "Varna", capital: "Varna", coordinates: [43.2141, 27.9147] },
+            { name: "Veliko Tarnovo", capital: "Veliko Tarnovo", coordinates: [43.0812, 25.6291] },
+            { name: "Vidin", capital: "Vidin", coordinates: [43.9908, 22.8811] },
+            { name: "Vratsa", capital: "Vratsa", coordinates: [43.2105, 23.5625] },
+            { name: "Yambol", capital: "Yambol", coordinates: [42.4845, 26.5037] }
+        ];
+        let originalProvinceList = [...provincesData];
+        const map = L.map('map').setView([42.6977, 23.3219], 7); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateProvinceList(provinces) {
+            regionList.innerHTML = '';
+            provinces.forEach(province => {
+                const li = document.createElement('li');
+                li.textContent = `${province.name} - Capital: ${province.capital}`;
+                li.addEventListener('click', () => handleProvinceClick(province));
+                regionList.appendChild(li);
+            });
+        }
+        populateProvinceList(provincesData);
+        function handleProvinceClick(province) {
+            document.getElementById('region-name').textContent = `Province: ${province.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${province.capital}`;
+            const lat = province.coordinates[0];
+            const lon = province.coordinates[1];
+            map.setView([lat, lon], 10); 
+            L.marker([lat, lon]).addTo(map).bindPopup(`${province.name} - ${province.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block';
+            speakText(`${province.name} - Capital: ${province.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a Province to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([42.6977, 23.3219], 7); 
+            populateProvinceList(originalProvinceList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredProvinces = [];
+            regionList.innerHTML = ''; 
+            provincesData.forEach(province => {
+                if (province.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${province.name} - Capital: ${province.capital}`;
+                    li.addEventListener('click', () => handleProvinceClick(province));
+                    regionList.appendChild(li);
+                    filteredProvinces.push(province);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+</body>
+</html>

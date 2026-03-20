@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Colombia</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Colombia</span>
+        <input id="search-bar" type="text" placeholder="Search for a Region..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Regions and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Region to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const regionsData = [
+            { name: "Amazonas", capital: "Leticia", coordinates: [-4.2097, -69.2717] },
+            { name: "Antioquia", capital: "Medellín", coordinates: [6.2518, -75.5636] },
+            { name: "Arauca", capital: "Arauca", coordinates: [7.0833, -70.7361] },
+            { name: "Atlántico", capital: "Barranquilla", coordinates: [10.9685, -74.7813] },
+            { name: "Bogotá D.C.", capital: "Bogotá", coordinates: [4.7110, -74.0721] },
+            { name: "Bolívar", capital: "Cartagena", coordinates: [10.3910, -75.4794] },
+            { name: "Boyacá", capital: "Tunja", coordinates: [5.5377, -73.3648] },
+            { name: "Caldas", capital: "Manizales", coordinates: [5.0600, -75.5170] },
+            { name: "Caquetá", capital: "Florencia", coordinates: [1.6133, -75.6167] },
+            { name: "Casanare", capital: "Yopal", coordinates: [5.3601, -72.3984] },
+            { name: "Cauca", capital: "Popayán", coordinates: [2.4436, -76.6050] },
+            { name: "Cesar", capital: "Valledupar", coordinates: [10.4632, -73.2489] },
+            { name: "Chocó", capital: "Quibdó", coordinates: [5.6941, -76.6374] },
+            { name: "Córdoba", capital: "Montería", coordinates: [8.7497, -75.8830] },
+            { name: "Cundinamarca", capital: "Zipaquirá", coordinates: [5.0233, -74.0028] },
+            { name: "Guainía", capital: "Inírida", coordinates: [3.8714, -67.9520] },
+            { name: "Guaviare", capital: "San José del Guaviare", coordinates: [2.5714, -72.6464] },
+            { name: "Huila", capital: "Neiva", coordinates: [2.9310, -75.2816] },
+            { name: "La Guajira", capital: "Riohacha", coordinates: [11.5464, -72.9072] },
+            { name: "Magdalena", capital: "Santa Marta", coordinates: [11.2400, -74.1990] },
+            { name: "Meta", capital: "Villavicencio", coordinates: [4.1420, -73.6369] },
+            { name: "Nariño", capital: "Pasto", coordinates: [1.2132, -77.2810] },
+            { name: "Norte de Santander", capital: "Cúcuta", coordinates: [7.8893, -72.5078] },
+            { name: "Putumayo", capital: "Mocoa", coordinates: [1.1535, -76.6395] },
+            { name: "Quindío", capital: "Armenia", coordinates: [4.5357, -75.6817] },
+            { name: "Risaralda", capital: "Pereira", coordinates: [4.8141, -75.6969] },
+            { name: "San Andrés y Providencia", capital: "San Andrés", coordinates: [12.5847, -81.7118] },
+            { name: "Santander", capital: "Bucaramanga", coordinates: [7.1193, -73.1181] },
+            { name: "Sucre", capital: "Sincelejo", coordinates: [9.3076, -75.3940] },
+            { name: "Tolima", capital: "Ibagué", coordinates: [4.4385, -75.2026] },
+            { name: "Valle del Cauca", capital: "Cali", coordinates: [3.4516, -76.5320] },
+            { name: "Vaupés", capital: "Mitú", coordinates: [1.2705, -70.2194] },
+            { name: "Vichada", capital: "Puerto Carreño", coordinates: [4.5919, -69.5804] }
+        ];
+        let originalRegionList = [...regionsData];
+        const map = L.map('map').setView([4.7110, -74.0721], 6); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(regions) {
+            regionList.innerHTML = '';
+            regions.forEach(region => {
+                const li = document.createElement('li');
+                li.textContent = `${region.name} - Capital: ${region.capital}`;
+                li.addEventListener('click', () => handleRegionClick(region));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(regionsData);
+        function handleRegionClick(region) {
+            document.getElementById('region-name').textContent = `Region: ${region.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${region.capital}`;
+            const lat = region.coordinates[0];
+            const lon = region.coordinates[1];
+            map.setView([lat, lon], 8); // Zoom into region location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${region.name} - ${region.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+            speakText(`${region.name} - Capital: ${region.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a Region to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([4.7110, -74.0721], 6); 
+            populateRegionList(originalRegionList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredRegions = [];
+            regionList.innerHTML = ''; 
+            regionsData.forEach(region => {
+                if (region.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${region.name} - Capital: ${region.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(region));
+                    regionList.appendChild(li);
+                    filteredRegions.push(region);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

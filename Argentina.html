@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with Province and Capital</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #state-list .highlighted {
+            background-color: #ddd;
+        }
+        #state-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Argentina</span>
+        <input id="search-bar" type="text" placeholder="Search for a province..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Provinces and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a province to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of Argentina's provinces with their capitals and coordinates
+        const statesData = [
+            { name: "Buenos Aires", capital: "La Plata", coordinates: [-34.9218, -57.9547] },
+            { name: "Catamarca", capital: "San Fernando del Valle de Catamarca", coordinates: [-28.4697, -65.7795] },
+            { name: "Chaco", capital: "Resistencia", coordinates: [-27.4519, -58.9863] },
+            { name: "Chubut", capital: "Rawson", coordinates: [-43.2996, -65.1037] },
+            { name: "Córdoba", capital: "Córdoba", coordinates: [-31.4201, -64.1888] },
+            { name: "Corrientes", capital: "Corrientes", coordinates: [-27.4803, -58.8345] },
+            { name: "Entre Ríos", capital: "Paraná", coordinates: [-31.7325, -60.5207] },
+            { name: "Formosa", capital: "Formosa", coordinates: [-26.1834, -58.1725] },
+            { name: "Jujuy", capital: "San Salvador de Jujuy", coordinates: [-24.1851, -65.2997] },
+            { name: "La Pampa", capital: "Santa Rosa", coordinates: [-36.6167, -64.2833] },
+            { name: "La Rioja", capital: "La Rioja", coordinates: [-29.4139, -66.8597] },
+            { name: "Mendoza", capital: "Mendoza", coordinates: [-32.8895, -68.8272] },
+            { name: "Misiones", capital: "Posadas", coordinates: [-27.3681, -55.8962] },
+            { name: "Neuquén", capital: "Neuquén", coordinates: [-38.9516, -68.0593] },
+            { name: "Río Negro", capital: "Viedma", coordinates: [-40.8136, -63.0019] },
+            { name: "Salta", capital: "Salta", coordinates: [-24.7820, -65.4123] },
+            { name: "San Juan", capital: "San Juan", coordinates: [-31.5370, -68.5360] },
+            { name: "San Luis", capital: "San Luis", coordinates: [-33.2985, -66.3354] },
+            { name: "Santa Cruz", capital: "Río Gallegos", coordinates: [-51.6220, -69.2160] },
+            { name: "Santa Fe", capital: "Santa Fe", coordinates: [-31.6333, -60.7000] },
+            { name: "Santiago del Estero", capital: "Santiago del Estero", coordinates: [-27.7867, -64.2610] },
+            { name: "Tierra del Fuego", capital: "Ushuaia", coordinates: [-54.8019, -68.3030] },
+            { name: "Tucumán", capital: "San Miguel de Tucumán", coordinates: [-26.8083, -65.2176] }
+        ];
+        let originalStateList = [...statesData];
+
+        // Initialize the map
+        const map = L.map('map').setView([-38.4161, -63.6167], 5);
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Populate the state list
+        const stateList = document.getElementById('state-list');
+        function populateStateList(states) {
+            stateList.innerHTML = '';
+            states.forEach(state => {
+                const li = document.createElement('li');
+                li.textContent = `${state.name} - Capital: ${state.capital}`;
+                li.addEventListener('click', () => handleStateClick(state));
+                stateList.appendChild(li);
+            });
+        }
+        populateStateList(statesData);
+
+        // Handle state click
+        function handleStateClick(state) {
+            document.getElementById('state-name').textContent = `State: ${state.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+            const lat = state.coordinates[0];
+            const lon = state.coordinates[1];
+            map.setView([lat, lon], 10); // Zoom into state location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+
+            // Play the name of the state and capital
+            speakText(`${state.name} - Capital: ${state.capital}`);
+        }
+
+        // Function to use the Web Speech API to speak the text
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Back button functionality
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; // Hide the back button
+            document.getElementById('state-name').textContent = 'Select a State to view details'; // Reset the state details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([-38.4161, -63.6167], 5); // Reset map view
+            populateStateList(originalStateList); // Restore original state list
+        });
+
+        // Search functionality
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredStates = [];
+            stateList.innerHTML = ''; // Clear the existing list
+            statesData.forEach(state => {
+                if (state.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${state.name} - Capital: ${state.capital}`;
+                    li.addEventListener('click', () => handleStateClick(state));
+                    stateList.appendChild(li);
+                    filteredStates.push(state);
+                }
+            });
+        });
+
+        // Home button functionality to navigate back to Home.html
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        // World map button functionality
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

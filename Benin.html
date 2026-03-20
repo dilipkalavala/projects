@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Benin</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Benin</span>
+        <input id="search-bar" type="text" placeholder="Search for a Department..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Departments and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Department to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const departmentsData = [
+            { name: "Alibori", capital: "Kandi", coordinates: [11.1306, 2.9350] },
+            { name: "Atacora", capital: "Natitingou", coordinates: [10.3050, 1.3830] },
+            { name: "Atlantique", capital: "Ouidah", coordinates: [6.3627, 2.0840] },
+            { name: "Borgou", capital: "Parakou", coordinates: [9.3340, 2.6090] },
+            { name: "Collines", capital: "Savalou", coordinates: [7.9300, 1.9706] },
+            { name: "Donga", capital: "Djougou", coordinates: [9.7072, 1.6650] },
+            { name: "Kouffo", capital: "Dogbo", coordinates: [6.7989, 1.7780] },
+            { name: "Littoral", capital: "Cotonou", coordinates: [6.3703, 2.3912] },
+            { name: "Mono", capital: "Lokossa", coordinates: [6.6380, 1.7160] },
+            { name: "Ouémé", capital: "Porto-Novo", coordinates: [6.4969, 2.6289] },
+            { name: "Plateau", capital: "Pobè", coordinates: [7.0039, 2.6590] },
+            { name: "Zou", capital: "Abomey", coordinates: [7.1856, 1.9906] }
+        ];
+        let originalDepartmentList = [...departmentsData];
+        const map = L.map('map').setView([9.3077, 2.3158], 7); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateDepartmentList(departments) {
+            regionList.innerHTML = '';
+            departments.forEach(department => {
+                const li = document.createElement('li');
+                li.textContent = `${department.name} - Capital: ${department.capital}`;
+                li.addEventListener('click', () => handleDepartmentClick(department));
+                regionList.appendChild(li);
+            });
+        }
+        populateDepartmentList(departmentsData);
+        function handleDepartmentClick(department) {
+            document.getElementById('region-name').textContent = `Department: ${department.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${department.capital}`;
+            const lat = department.coordinates[0];
+            const lon = department.coordinates[1];
+            map.setView([lat, lon], 10); 
+            L.marker([lat, lon]).addTo(map).bindPopup(`${department.name} - ${department.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block';
+            speakText(`${department.name} - Capital: ${department.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a Department to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([9.3077, 2.3158], 7); 
+            populateDepartmentList(originalDepartmentList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredDepartments = [];
+            regionList.innerHTML = ''; 
+            departmentsData.forEach(department => {
+                if (department.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${department.name} - Capital: ${department.capital}`;
+                    li.addEventListener('click', () => handleDepartmentClick(department));
+                    regionList.appendChild(li);
+                    filteredDepartments.push(department);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+</body>
+</html>

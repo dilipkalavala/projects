@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of China</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #region-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #region-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #region-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">China</span>
+        <input id="search-bar" type="text" placeholder="Search for a Region..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Regions and Capitals</h3>
+            <ul id="region-list"></ul>
+            <div id="region-name">Select a Region to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const regionsData = [
+            { name: "Anhui", capital: "Hefei", coordinates: [31.8200, 117.2700] },
+            { name: "Beijing", capital: "Beijing", coordinates: [39.9042, 116.4074] },
+            { name: "Chongqing", capital: "Chongqing", coordinates: [29.5630, 106.5516] },
+            { name: "Fujian", capital: "Fuzhou", coordinates: [26.0745, 119.2965] },
+            { name: "Gansu", capital: "Lanzhou", coordinates: [36.0611, 103.8343] },
+            { name: "Guangdong", capital: "Guangzhou", coordinates: [23.1291, 113.2644] },
+            { name: "Guizhou", capital: "Guiyang", coordinates: [26.5982, 106.7135] },
+            { name: "Hainan", capital: "Haikou", coordinates: [20.0440, 110.1990] },
+            { name: "Hebei", capital: "Shijiazhuang", coordinates: [38.0428, 114.5149] },
+            { name: "Heilongjiang", capital: "Harbin", coordinates: [45.8038, 126.5349] },
+            { name: "Henan", capital: "Zhengzhou", coordinates: [34.7466, 113.6254] },
+            { name: "Hong Kong", capital: "Hong Kong", coordinates: [22.3193, 114.1694] },
+            { name: "Hubei", capital: "Wuhan", coordinates: [30.5928, 114.3055] },
+            { name: "Hunan", capital: "Changsha", coordinates: [28.2282, 112.9388] },
+            { name: "Inner Mongolia", capital: "Hohhot", coordinates: [40.8427, 111.7492] },
+            { name: "Jiangsu", capital: "Nanjing", coordinates: [32.0603, 118.7969] },
+            { name: "Jiangxi", capital: "Nanchang", coordinates: [28.6820, 115.8575] },
+            { name: "Jilin", capital: "Changchun", coordinates: [43.8176, 125.3235] },
+            { name: "Liaoning", capital: "Shenyang", coordinates: [41.8057, 123.4315] },
+            { name: "Macau", capital: "Macau", coordinates: [22.1987, 113.5439] },
+            { name: "Ningxia", capital: "Yinchuan", coordinates: [38.4872, 106.2325] },
+            { name: "Qinghai", capital: "Xining", coordinates: [36.6172, 101.7789] },
+            { name: "Shaanxi", capital: "Xi'an", coordinates: [34.3430, 108.9398] },
+            { name: "Shandong", capital: "Jinan", coordinates: [36.6502, 117.1201] },
+            { name: "Shanghai", capital: "Shanghai", coordinates: [31.2304, 121.4737] },
+            { name: "Shanxi", capital: "Taiyuan", coordinates: [37.8706, 112.5489] },
+            { name: "Sichuan", capital: "Chengdu", coordinates: [30.5728, 104.0668] },
+            { name: "Tianjin", capital: "Tianjin", coordinates: [39.3434, 117.3616] },
+            { name: "Tibet", capital: "Lhasa", coordinates: [29.6569, 91.1175] },
+            { name: "Xinjiang", capital: "Urumqi", coordinates: [43.8256, 87.6168] },
+            { name: "Xizang", capital: "Lhasa", coordinates: [29.6569, 91.1175] },
+            { name: "Yunnan", capital: "Kunming", coordinates: [25.0380, 102.7183] },
+            { name: "Zhejiang", capital: "Hangzhou", coordinates: [30.2741, 120.1551] }
+        ];
+        let originalRegionList = [...regionsData];
+        const map = L.map('map').setView([39.9042, 116.4074], 5); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+        const regionList = document.getElementById('region-list');
+        function populateRegionList(regions) {
+            regionList.innerHTML = '';
+            regions.forEach(region => {
+                const li = document.createElement('li');
+                li.textContent = `${region.name} - Capital: ${region.capital}`;
+                li.addEventListener('click', () => handleRegionClick(region));
+                regionList.appendChild(li);
+            });
+        }
+        populateRegionList(regionsData);
+        function handleRegionClick(region) {
+            document.getElementById('region-name').textContent = `Region: ${region.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${region.capital}`;
+            const lat = region.coordinates[0];
+            const lon = region.coordinates[1];
+            map.setView([lat, lon], 7); // Zoom into region location
+            L.marker([lat, lon]).addTo(map).bindPopup(`${region.name} - ${region.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+            speakText(`${region.name} - Capital: ${region.capital}`);
+        }
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('region-name').textContent = 'Select a Region to view details'; // Reset the region details
+            document.getElementById('capital-name').textContent = ''; // Reset the capital details
+            map.setView([39.9042, 116.4074], 5); 
+            populateRegionList(originalRegionList); 
+        });
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredRegions = [];
+            regionList.innerHTML = ''; 
+            regionsData.forEach(region => {
+                if (region.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${region.name} - Capital: ${region.capital}`;
+                    li.addEventListener('click', () => handleRegionClick(region));
+                    regionList.appendChild(li);
+                    filteredRegions.push(region);
+                }
+            });
+        });
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+
+</body>
+</html>

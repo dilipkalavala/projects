@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map with State and Capital</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #state-list .highlighted {
+            background-color: #ddd;
+        }
+        #state-list .search-highlight {
+            color: green;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+
+    <div id="search-container">
+        <span id="country-name">Azerbaijan map</span>
+        <input id="search-bar" type="text" placeholder="Search for a region..." />
+    </div>
+
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>Regions and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a region to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+
+    <script>
+        // List of all Azerbaijani regions with their capitals and coordinates
+        const statesData = [
+          { name: "Baku", capital: "Baku", coordinates: [40.4093, 49.8671] },
+          { name: "Ganja", capital: "Ganja", coordinates: [40.6828, 46.3602] },
+          { name: "Sumqayit", capital: "Sumqayit", coordinates: [40.5890, 49.6682] },
+          { name: "Lankaran", capital: "Lankaran", coordinates: [38.7507, 48.8522] },
+          { name: "Mingachevir", capital: "Mingachevir", coordinates: [40.6346, 47.0515] },
+          { name: "Goychay", capital: "Goychay", coordinates: [40.6492, 47.5477] },
+          { name: "Shirvan", capital: "Shirvan", coordinates: [39.9383, 48.8600] },
+          { name: "Yevlakh", capital: "Yevlakh", coordinates: [40.6076, 47.1256] },
+          { name: "Khachmaz", capital: "Khachmaz", coordinates: [41.1389, 48.6825] },
+          { name: "Zaqatala", capital: "Zaqatala", coordinates: [41.6014, 46.6354] },
+          // Add more regions as necessary
+        ];
+
+        // Initialize the map centered on Azerbaijan (Baku)
+        const map = L.map('map').setView([40.4093, 49.8671], 6); // Centering Azerbaijan (Baku)
+
+        // Add a tile layer for the map background
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Variables to track the previous map view
+        let previousView = { center: [40.4093, 49.8671], zoom: 6 };
+
+        // Populate the state list
+        const stateList = document.getElementById('state-list');
+        function populateStateList(states) {
+            stateList.innerHTML = '';
+            states.forEach(state => {
+                const li = document.createElement('li');
+                li.textContent = `${state.name} - Capital: ${state.capital}`;
+                li.addEventListener('click', () => handleStateClick(state));
+                stateList.appendChild(li);
+            });
+       
+
+        }
+        populateStateList(statesData);
+
+// Handle state click
+function handleStateClick(state) {
+    // Save the current view before zooming into the state
+    previousView = {
+        center: map.getCenter(),
+        zoom: map.getZoom()
+    };
+
+    document.getElementById('state-name').textContent = `State: ${state.name}`;
+    document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+    const lat = state.coordinates[0];
+    const lon = state.coordinates[1];
+    map.setView([lat, lon], 10); // Zoom into state location
+    L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+    document.getElementById('back-button').style.display = 'block'; // Show back button
+
+    // Play the name of the state and capital
+    speakText(`${state.name} - Capital: ${state.capital}`);
+}
+
+// Function to use the Web Speech API to speak the text
+function speakText(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    speechSynthesis.speak(utterance);
+}
+
+// Back button functionality
+document.getElementById('back-button').addEventListener('click', function () {
+    this.style.display = 'none'; // Hide the back button
+    document.getElementById('state-name').textContent = 'Select a State to view details'; // Reset the state details
+    document.getElementById('capital-name').textContent = ''; // Reset the capital details
+
+    // Restore the previous map view
+    map.setView(previousView.center, previousView.zoom);
+});
+
+// Search functionality
+document.getElementById('search-bar').addEventListener('input', function () {
+    const searchTerm = this.value.toLowerCase();
+    const filteredStates = [];
+    stateList.innerHTML = ''; // Clear the existing list
+    statesData.forEach(state => {
+        if (state.name.toLowerCase().includes(searchTerm)) {
+            const li = document.createElement('li');
+            li.textContent = `${state.name} - Capital: ${state.capital}`;
+            li.addEventListener('click', () => handleStateClick(state));
+            stateList.appendChild(li);
+            filteredStates.push(state);
+        }
+    });
+});
+
+// Home button functionality to navigate back to Home.html
+document.getElementById('home-button').addEventListener('click', function () {
+    window.location.href = 'Home.html';
+});
+
+// World map button functionality
+document.getElementById('world-map-button').addEventListener('click', function () {
+    window.location.href = 'World.html';
+});
+</script>
