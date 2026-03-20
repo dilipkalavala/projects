@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Map of Nigeria</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #search-container {
+            padding: 10px;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #country-name {
+            font-size: 18px;
+            margin-right: 10px;
+        }
+        #search-bar {
+            width: 80%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #map {
+            width: 50%;
+            height: 100%;
+        }
+        #details-container {
+            width: 50%;
+            padding: 20px;
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            text-align: left;
+            font-size: 16px;
+            overflow: auto;
+        }
+        #state-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        #state-list li {
+            padding: 8px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        #state-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #back-button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #back-button:hover {
+            background-color: #45a049;
+        }
+        #home-button, #world-map-button {
+            position: absolute;
+            top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #home-button:hover, #world-map-button:hover {
+            background-color: #45a049;
+        }
+        #home-button {
+            right: 10px;
+        }
+        #world-map-button {
+            right: 90px;
+        }
+    </style>
+</head>
+<body>
+    <button id="home-button">Home</button>
+    <button id="world-map-button">World Map</button>
+    <div id="search-container">
+        <span id="country-name">Nigeria</span>
+        <input id="search-bar" type="text" placeholder="Search for a State..." />
+    </div>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="details-container">
+            <h3>States and Capitals</h3>
+            <ul id="state-list"></ul>
+            <div id="state-name">Select a State to view details</div>
+            <div id="capital-name"></div>
+            <button id="back-button" style="display:none;">Back</button>
+        </div>
+    </div>
+    <script>
+        const statesData = [
+            { name: "Abia", capital: "Umuahia" },
+            { name: "Adamawa", capital: "Yola" },
+            { name: "Akwa Ibom", capital: "Uyo" },
+            { name: "Anambra", capital: "Awka" },
+            { name: "Bauchi", capital: "Bauchi" },
+            { name: "Bayelsa", capital: "Yenagoa" },
+            { name: "Benue", capital: "Makurdi" },
+            { name: "Borno", capital: "Maiduguri" },
+            { name: "Cross River", capital: "Calabar" },
+            { name: "Delta", capital: "Asaba" },
+            { name: "Ebonyi", capital: "Abakaliki" },
+            { name: "Edo", capital: "Benin City" },
+            { name: "Ekiti", capital: "Ado-Ekiti" },
+            { name: "Enugu", capital: "Enugu" },
+            { name: "Gombe", capital: "Gombe" },
+            { name: "Imo", capital: "Owerri" },
+            { name: "Jigawa", capital: "Dutse" },
+            { name: "Kaduna", capital: "Kaduna" },
+            { name: "Kano", capital: "Kano" },
+            { name: "Katsina", capital: "Katsina" },
+            { name: "Kebbi", capital: "Birnin Kebbi" },
+            { name: "Kogi", capital: "Lokoja" },
+            { name: "Kwara", capital: "Ilorin" },
+            { name: "Lagos", capital: "Ikeja" },
+            { name: "Nasarawa", capital: "Lafia" },
+            { name: "Niger", capital: "Minna" },
+            { name: "Ogun", capital: "Abeokuta" },
+            { name: "Ondo", capital: "Akure" },
+            { name: "Osun", capital: "Osogbo" },
+            { name: "Oyo", capital: "Ibadan" },
+            { name: "Plateau", capital: "Jos" },
+            { name: "Rivers", capital: "Port Harcourt" },
+            { name: "Sokoto", capital: "Sokoto" },
+            { name: "Taraba", capital: "Jalingo" },
+            { name: "Yobe", capital: "Damaturu" },
+            { name: "Zamfara", capital: "Gusau" }
+        ];
+        let originalStateList = [...statesData];
+        const map = L.map('map').setView([9.082, 8.6753], 6); // Coordinates for Nigeria
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        const stateList = document.getElementById('state-list');
+        function populateStateList(states) {
+            stateList.innerHTML = '';
+            states.forEach(state => {
+                const li = document.createElement('li');
+                li.textContent = `${state.name} - Capital: ${state.capital}`;
+                li.addEventListener('click', () => handleStateClick(state));
+                stateList.appendChild(li);
+            });
+        }
+        populateStateList(statesData);
+
+        function handleStateClick(state) {
+            document.getElementById('state-name').textContent = `State: ${state.name}`;
+            document.getElementById('capital-name').textContent = `Capital: ${state.capital}`;
+            const lat = 9.082;  // Coordinates for Nigeria's central location
+            const lon = 8.6753;   // Coordinates for Nigeria's central location
+            map.setView([lat, lon], 8); // Zoom into state
+            L.marker([lat, lon]).addTo(map).bindPopup(`${state.name} - ${state.capital}`).openPopup();
+            document.getElementById('back-button').style.display = 'block'; // Show back button
+            speakText(`${state.name} - Capital: ${state.capital}`);
+        }
+
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        document.getElementById('back-button').addEventListener('click', function() {
+            this.style.display = 'none'; 
+            document.getElementById('state-name').textContent = 'Select a State to view details'; 
+            document.getElementById('capital-name').textContent = ''; 
+            map.setView([9.082, 8.6753], 6); 
+            populateStateList(originalStateList); 
+        });
+
+        document.getElementById('search-bar').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredStates = [];
+            stateList.innerHTML = ''; 
+            statesData.forEach(state => {
+                if (state.name.toLowerCase().includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.textContent = `${state.name} - Capital: ${state.capital}`;
+                    li.addEventListener('click', () => handleStateClick(state));
+                    stateList.appendChild(li);
+                    filteredStates.push(state);
+                }
+            });
+        });
+
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = 'Home.html';
+        });
+
+        document.getElementById('world-map-button').addEventListener('click', function() {
+            window.location.href = 'World.html';
+        });
+    </script>
+</body>
+</html>

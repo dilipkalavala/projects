@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive World Map (Updated)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { margin: 0; height: 100vh; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
+    #search-container { width: 100%; display:flex; justify-content:center; padding:10px; background:#f8f8f8; z-index:1000 }
+    #search-bar { width:60%; max-width:500px; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:16px }
+    #countries-button { margin-left:10px; padding:8px 16px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer }
+    #countries-button:hover { background:#0056b3 }
+    #main-container { display:flex; flex-direction:row; height:calc(100% - 50px); width:100%; position:relative; padding:10px }
+    #map-container { flex:1; width:100%; height:100%; position:relative }
+    #details-container { flex:0; width:0; overflow:hidden; padding:10px; background:#f8f8f8; transition:all .35s ease }
+    #country-list-container { display:none; padding:10px; overflow-y:auto; height:100%; background:#fff; box-shadow:0 0 10px rgba(0,0,0,0.1) }
+    #country-search-bar { margin-bottom:10px; padding:8px; border:1px solid #ccc; border-radius:4px; width:100%; font-size:16px }
+    #country-list { list-style:none; padding:0; margin:0 }
+    #country-list li { padding:8px; margin:5px 0; cursor:pointer; font-size:16px; border-radius:4px }
+    #country-list li:hover { background:#f0f0f0 }
+    #map { height:100%; width:100% }
+    h2 { margin-top:0 }
+    .back-button { margin-top:10px; padding:10px; background:#007BFF; color:white; border:none; cursor:pointer; border-radius:5px }
+    .back-button:hover { background:#0056b3 }
+    .go-home-button { position:absolute; left:10px; bottom:10px; padding:10px; background:#28a745; color:white; border:none; cursor:pointer; border-radius:5px; z-index:1000 }
+    .go-home-button:hover { background:#218838 }
+    @media screen and (max-width:1024px) { #search-bar { width:90% } #main-container { flex-direction:column } #map-container { height:50vh } #details-container { width:100%; height:50vh } .go-home-button { left:50%; transform:translateX(-50%); bottom:20px } }
+    @media screen and (max-width:768px) { #search-bar{width:95%} #map-container{height:55vh} #details-container{height:45vh} }
+  </style>
+</head>
+<body>
+  <div id="search-container">
+    <input id="search-bar" type="text" placeholder="Search for a country..." />
+    <button id="countries-button" onclick="toggleCountryList()">Countries</button>
+  </div>
+  <div id="main-container">
+    <div id="map-container"><div id="map"></div></div>
+    <div id="details-container">
+      <h2>Country Details</h2>
+      <div id="country-details"><p>Select a country on the map to view details.</p></div>
+      <button id="back-button" class="back-button" style="display:none">Back</button>
+    </div>
+    <div id="country-list-container">
+      <h2>Countries and Capitals</h2>
+      <input id="country-search-bar" type="text" placeholder="Search countries..." oninput="filterCountryList()" />
+      <ul id="country-list"></ul>
+    </div>
+  </div>
+  <button id="go-home-button" class="go-home-button" onclick="goToHomePage()">Go to Home</button>
+
+  <script>
+    // --- Globals ---
+    const map = L.map('map').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap contributors' }).addTo(map);
+
+    let countryLayer = null;            // full geojson layer group
+    let selectedCountryLayer = null;    // highlighted country polygon
+    let countriesData = null;           // raw GeoJSON
+
+    // Track last selection to implement "2nd-click redirect"
+    let lastSelectedCountryName = null;
+    let lastSelectionTimestamp = 0;
+    const DOUBLE_CLICK_REDIRECT_MS = 6000; // second click within this opens page
+
+    // --- Helpers to safely obtain country name / capital ---
+    function getCountryName(feature) {
+      try {
+        if (!feature || !feature.properties) return 'Unknown';
+        const p = feature.properties;
+        const keys = ['ADMIN', 'ADMIN_NAME', 'NAME', 'name', 'NAME_LONG', 'SOVEREIGNT', 'sovereignt', 'FORMAL_EN'];
+        for (const k of keys) if (p[k] && typeof p[k] === 'string' && p[k].trim()) return p[k].trim();
+        // fallback: find any property that looks like a name
+        for (const k in p) {
+          if (k.toLowerCase().includes('name') && p[k]) return String(p[k]);
+        }
+      } catch (e) {
+        console.warn('Error reading country name', e);
+      }
+      return 'Unknown';
+    }
+
+    function getCountryCapital(feature) {
+      try {
+        if (!feature || !feature.properties) return 'N/A';
+        const p = feature.properties;
+        const keys = ['capital', 'Capital', 'CAPITAL', 'capital_city', 'capitalName'];
+        for (const k of keys) if (p[k]) return p[k];
+      } catch (e) {
+        console.warn('Error reading country capital', e);
+      }
+      return 'N/A';
+    }
+
+    function normalizeString(s) {
+      if (!s) return '';
+      try {
+        return String(s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, ' ').trim();
+      } catch (e) {
+        return String(s).toLowerCase();
+      }
+    }
+
+    function makeFileSafe(name) {
+      return normalizeString(name).replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+
+    // --- Load GeoJSON ---
+    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+      .then(res => res.json())
+      .then(data => {
+        countriesData = data;
+        // Create a base layer that shows all countries and binds hover/tooltip
+        countryLayer = L.geoJSON(data, {
+          style: () => ({ fillColor: '#ADD8E6', weight: 1, color: 'black', fillOpacity: 0.7 }),
+          onEachFeature: onEachFeature
+        }).addTo(map);
+
+        // allow pressing Enter on the search bar after data loaded
+        const searchBar = document.getElementById('search-bar');
+        searchBar.addEventListener('keyup', (event) => {
+          if (event.key === 'Enter') {
+            const q = normalizeString(searchBar.value.trim());
+            if (!q) return;
+            // Try exact match first, then contains
+            const exact = data.features.find(f => normalizeString(getCountryName(f)) === q);
+            const contains = data.features.find(f => normalizeString(getCountryName(f)).includes(q));
+            const feature = exact || contains;
+            if (feature) {
+              handleCountrySelection(feature);
+            } else {
+              alert('Country not found. Please try again.');
+            }
+          }
+        });
+      })
+      .catch(err => {
+        console.error('Failed to load countries GeoJSON:', err);
+        alert('Could not load country data. Check console for details.');
+      });
+
+    // Called for every country feature when building the layer
+    function onEachFeature(feature, layer) {
+      const name = getCountryName(feature);
+      layer.bindTooltip(name, { sticky: true });
+
+      layer.on('click', () => {
+        handleCountrySelection(feature, layer);
+      });
+
+      layer.on('mouseover', function () {
+        this.setStyle && this.setStyle({ weight: 2, fillOpacity: 0.9 });
+      });
+      layer.on('mouseout', function () {
+        // reset style for base layer
+        if (countryLayer && countryLayer.resetStyle) countryLayer.resetStyle(this);
+      });
+    }
+
+    // Main selection handler - feature is the GeoJSON feature, layer may be provided
+    function handleCountrySelection(feature, layer) {
+      const name = getCountryName(feature);
+      const capital = getCountryCapital(feature);
+
+      const now = Date.now();
+      if (lastSelectedCountryName === name && (now - lastSelectionTimestamp) < DOUBLE_CLICK_REDIRECT_MS) {
+        // second click quickly - redirect to file
+        const fileSafeName = makeFileSafe(name) || 'country';
+        window.open(`${fileSafeName}.html`, '_blank');
+        return;
+      }
+      lastSelectedCountryName = name;
+      lastSelectionTimestamp = now;
+
+      // Show details
+      const countryDetails = document.getElementById('country-details');
+      countryDetails.innerHTML = `
+        <p><b>Country:</b> <span id="country-name" style="color:blue; cursor:pointer; text-decoration:underline;">${name}</span></p>
+        <p><b>Capital:</b> ${capital}</p>
+      `;
+
+      // Highlight feature
+      try {
+        if (selectedCountryLayer) map.removeLayer(selectedCountryLayer);
+        selectedCountryLayer = L.geoJSON(feature, {
+          style: { fillColor: '#FFD700', weight: 2, color: 'black', fillOpacity: 0.85 }
+        }).addTo(map);
+        // fit to bounds, with a cap on max zoom
+        const bounds = selectedCountryLayer.getBounds();
+        if (bounds && bounds.isValid && bounds.isValid()) map.fitBounds(bounds.pad(0.2), { maxZoom: 6 });
+      } catch (e) {
+        console.warn('Error highlighting country:', e);
+      }
+
+      // Speak the name (but avoid speaking 'Unknown')
+      if (name && name !== 'Unknown') speakCountryName(name);
+
+      document.getElementById('back-button').style.display = 'block';
+      splitScreen();
+
+      // clicking the displayed country name opens the page
+      const countryNameSpan = document.getElementById('country-name');
+      if (countryNameSpan) {
+        countryNameSpan.onclick = () => {
+          const fileSafeName = makeFileSafe(name) || 'country';
+          window.open(`${fileSafeName}.html`, '_blank');
+        };
+      }
+    }
+
+    function speakCountryName(countryName) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(countryName);
+        u.lang = 'en-US';
+        window.speechSynthesis.speak(u);
+      } catch (e) {
+        console.warn('Speech error', e);
+      }
+    }
+
+    function splitScreen() {
+      document.getElementById('map-container').style.flex = '1';
+      const detailsContainer = document.getElementById('details-container');
+      detailsContainer.style.flex = '1';
+      detailsContainer.style.width = '50%';
+    }
+
+    // Back button behaviour
+    document.getElementById('back-button').addEventListener('click', () => {
+      if (selectedCountryLayer) {
+        try { map.removeLayer(selectedCountryLayer); } catch (e) { /* ignore */ }
+        selectedCountryLayer = null;
+      }
+      if (countryLayer && countryLayer.getBounds) map.fitBounds(countryLayer.getBounds());
+      const detailsContainer = document.getElementById('details-container');
+      detailsContainer.style.flex = '0';
+      detailsContainer.style.width = '0';
+      document.getElementById('back-button').style.display = 'none';
+      document.getElementById('country-details').innerHTML = '<p>Select a country on the map to view details.</p>';
+      lastSelectedCountryName = null;
+      lastSelectionTimestamp = 0;
+    });
+
+    // Countries panel toggle (uses computed style so CSS initial 'display:none' works)
+    function toggleCountryList() {
+      const container = document.getElementById('country-list-container');
+      const current = window.getComputedStyle(container).display;
+      if (current === 'none') {
+        container.style.display = 'block';
+        populateCountryList(countriesData && countriesData.features ? countriesData.features : []);
+      } else {
+        container.style.display = 'none';
+      }
+    }
+
+    function populateCountryList(countries) {
+      const countryList = document.getElementById('country-list');
+      countryList.innerHTML = '';
+      if (!countries || !countries.length) {
+        countryList.innerHTML = '<li>No country data loaded.</li>';
+        return;
+      }
+      countries.forEach(feature => {
+        const li = document.createElement('li');
+        const name = getCountryName(feature);
+        const capital = getCountryCapital(feature) || 'N/A';
+        li.textContent = `${name} - Capital: ${capital}`;
+        li.onclick = () => handleCountrySelection(feature);
+        countryList.appendChild(li);
+      });
+    }
+
+    function filterCountryList() {
+      const q = normalizeString(document.getElementById('country-search-bar').value);
+      if (!countriesData || !countriesData.features) return;
+      const filtered = countriesData.features.filter(f => {
+        const name = normalizeString(getCountryName(f));
+        const cap = normalizeString(getCountryCapital(f));
+        return name.includes(q) || cap.includes(q);
+      });
+      populateCountryList(filtered);
+    }
+
+    function goToHomePage() { window.location.href = 'home.html'; }
+
+    // OPTIONAL: keyboard escape to close right panel
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.getElementById('back-button').click();
+        const container = document.getElementById('country-list-container');
+        container.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
